@@ -10,10 +10,8 @@ class Parallel(Node):
     async def execute(self, store: DataStore):
         tasks = [node.execute(store.copy()) for node in self.nodes]
         results = await asyncio.gather(*tasks)
-        # 合并
-        for s in results:
-            for dtype, value in s._data.items():
-                store.set(dtype, value)
+        for branch_store in results:
+            store.merge(branch_store)
         if self.next_node:
             return await self.next_node.execute(store)
         return store

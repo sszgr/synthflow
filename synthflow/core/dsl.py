@@ -1,18 +1,21 @@
 from synthflow.core.condition import IF, OR, SWITCH, If, Switch
-from synthflow.core.dsl import PARALLEL
 from synthflow.core.flow import Flow
-from synthflow.core.node import Node, ResultRef
+from synthflow.core.node import ResultRef
 from synthflow.core.parallel import Parallel
+
+
+def PARALLEL(*nodes, id=None):
+    return Parallel(*nodes, id=id)
+
 
 __all__ = [
     "Flow",
-    "Node",
-    "ResultRef",
-    "Parallel",
-    "If",
-    "Switch",
     "IF",
     "OR",
-    "SWITCH",
     "PARALLEL",
+    "SWITCH",
+    "If",
+    "Switch",
+    "Parallel",
+    "ResultRef",
 ]

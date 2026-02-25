@@ -1,26 +1,21 @@
 # SynthFlow
 
-Async workflow orchestration framework for composing typed nodes into execution graphs.
+Async workflow orchestration framework with a lightweight DSL.
 
-## Status
-
-This repository is early-stage (`0.1.0`). The core orchestration primitives are implemented:
-
-- `Node` with typed `inputs`/`outputs`
-- `Flow` execution over a shared `DataStore`
-- `Parallel` branch execution and merge
-- `If` conditional branch wrapper
-- `NodeResult` for referencing outputs from specific upstream nodes
-
-Some modules are present as placeholders (`execution/*`, `visualization/printer.py`), and plugin wiring is still evolving.
-
-## Installation
-
-From the repository root:
+## Install
 
 ```bash
 pip install -e .
 ```
+
+## Core Concepts
+
+- `Node`: execution unit; implement `async def run(...)`
+- `Flow`: workflow runner and visualizer
+- `ResultRef`: reference another node's output in `.input(...)`
+- `PARALLEL`: run branches concurrently
+- `IF` / `OR` / `SWITCH`: basic control flow DSL
+- `Retry` / `Timeout`: node plugins via `.use(...)`
 
 ## Quick Start
 
@@ -28,93 +23,86 @@ pip install -e .
 import asyncio
 
 from synthflow.core.flow import Flow
-from synthflow.core.node import Node
+from synthflow.core.node import Node, ResultRef
 
 
-class Numbers: ...
-class Doubled: ...
-class Total: ...
+class A(Node):
+    async def run(self, a, b, c):
+        return a + b + c
 
 
-class Generate(Node):
-    outputs = [Numbers]
+flow = Flow(
+    A(id="a1").input(1, 2, [3, 4, 5])
+    >> A(id="a2").input(
+        ResultRef("a1").item(2),  # 5
+        3,
+        4,
+    )
+    >> A(id="a3").input(
+        ResultRef("a2").map(lambda x: x * 2),
+        1,
+        1,
+    )
+)
 
-    async def run(self):
-        return {Numbers: [1, 2, 3, 4]}
-
-
-class Double(Node):
-    inputs = [Numbers]
-    outputs = [Doubled]
-
-    async def run(self, Numbers):
-        return {Doubled: [n * 2 for n in Numbers]}
-
-
-class Sum(Node):
-    inputs = [Doubled]
-    outputs = [Total]
-
-    async def run(self, Doubled):
-        return {Total: sum(Doubled)}
-
-
-class Print(Node):
-    inputs = [Total]
-
-    async def run(self, Total):
-        print(f"Result: {Total}")
-        return {}
-
-
-start = Generate(id="gen")
-start >> Double(id="dbl") >> Sum(id="sum") >> Print(id="out")
-flow = Flow(start)
-
+flow.visualize()
 asyncio.run(flow.run())
 ```
 
-## Parallel Branches
-
-Use `Parallel` to run branches concurrently. Each branch receives a copy of the current `DataStore`, then results are merged.
+## DSL Example (Parallel + IF + OR)
 
 ```python
-from synthflow.core.parallel import Parallel
+from synthflow.core.dsl import IF, OR, PARALLEL
+from synthflow.core.flow import Flow
+from synthflow.core.node import Node, ResultRef
 
-# start >> Parallel(branch_a, branch_b) >> join_node
+flow = Flow(
+    Seed(id="seed").input([2, 5, 8, 13, 21])
+    >> PARALLEL(
+        SumNode(id="sum_branch").input(ResultRef("seed")),
+        MaxNode(id="max_branch").input(ResultRef("seed")),
+        EvenCountNode(id="even_branch").input(ResultRef("seed")),
+        id="stats_parallel",
+    )
+    >> BuildSummary(id="summary").input(
+        ResultRef("sum_branch"),
+        ResultRef("max_branch"),
+        ResultRef("even_branch"),
+    )
+    >> IF(
+        condition=OR(
+            lambda store: (store.get_node_result("sum_branch") or 0) > 40,
+            lambda store: (store.get_node_result("max_branch") or 0) > 20,
+        ),
+        then_node=Alert(id="alert").input(ResultRef("summary")),
+        else_node=Normal(id="normal").input(ResultRef("summary")),
+        id="risk_if",
+    )
+)
 ```
 
-## Referencing Specific Upstream Results
-
-`NodeResult` lets you inject data from a specific node into runtime kwargs/args:
-
-```python
-from synthflow.core.node import NodeResult
-
-# node.input(summary=NodeResult("sum_node_id"))
-```
-
-If `output_type` is omitted, SynthFlow resolves by producer node id.
-
-## Conditional Branching
-
-`If` executes a wrapped node only when a condition is true:
-
-```python
-from synthflow.core.condition import If
-
-# start >> If(lambda store: store.has(MyType), some_node) >> next_node
-```
+Full runnable example: [`examples/general_pipeline.py`](examples/general_pipeline.py)
 
 ## Plugins
 
-The repo contains `Retry` and `Timeout` plugin classes under `synthflow/plugins/`.
+Attach plugins on a node with `.use(...)`:
 
-- `Timeout(seconds=...)` currently wraps a coroutine with `asyncio.wait_for(...)`.
-- `Retry(retries=..., delay=...)` retries a coroutine on exception.
+```python
+from synthflow.plugins import Retry, Timeout
 
-Note: plugin decorator integration via `Node.use(...)` is not fully wired in `0.1.0`, so treat plugin APIs as in-progress.
+node = SomeNode().use(Retry(retries=2, delay=0.1)).use(Timeout(seconds=2.0))
+```
 
-## Example
+## Visualize
 
-See [`examples/general_pipeline.py`](examples/general_pipeline.py) for a larger orchestration example.
+`flow.visualize()` prints a tree-style orchestration view, including branch labels:
+
+```text
+Flow
+└── Seed(seed)
+    └── Parallel(stats_parallel)
+        ├── [parallel-1] SumNode(sum_branch)
+        ├── [parallel-2] MaxNode(max_branch)
+        ├── [parallel-3] EvenCountNode(even_branch)
+        └── BuildSummary(summary)
+```
