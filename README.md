@@ -2,6 +2,8 @@
 
 Async workflow orchestration framework with a lightweight DSL.
 
+> Experimental project written with Codex. Do not use in production environments.
+
 ## Install
 
 ```bash
