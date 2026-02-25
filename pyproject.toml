@@ -1,0 +1,10 @@
+[project]
+name = "synthflow"
+version = "0.1.0"
+description = "Async intelligent workflow orchestration framework"
+authors = [{name="Your Name"}]
+dependencies = []
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
