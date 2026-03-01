@@ -3,8 +3,8 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "synthflow"
-version = "0.1.0"
+name = "synthflow-py"
+version = "0.1.1"
 description = "Async workflow orchestration framework with a lightweight DSL."
 readme = "README.md"
 requires-python = ">=3.10"

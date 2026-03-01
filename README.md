@@ -14,9 +14,20 @@ Async workflow orchestration framework with a lightweight DSL.
 
 ## Install
 
+Requires Python 3.10+
+
+### From PyPI (stable)
+
 ```bash
-pip install -e .
+pip install synthflow-py
+````
+
+### From GitHub (latest development version)
+
+```bash
+pip install git+https://github.com/sszgr/synthflow.git
 ```
+
 
 ## Core Concepts
 
