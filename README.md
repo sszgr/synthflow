@@ -4,6 +4,14 @@ Async workflow orchestration framework with a lightweight DSL.
 
 > Experimental project written with Codex. Do not use in production environments.
 
+## Why SynthFlow
+
+- Lightweight workflow DSL for async orchestration
+- Core control flow: `PARALLEL`, `IF`, `OR`, `SWITCH`
+- Cross-node value passing via `ResultRef`
+- Plugin pipeline for runtime policies (`Retry`, `Timeout`)
+- Readable tree visualization via `flow.visualize()`
+
 ## Install
 
 ```bash
