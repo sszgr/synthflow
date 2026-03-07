@@ -34,3 +34,6 @@ htmlcov/
 # Type checker / notebook
 .pyre/
 .ipynb_checkpoints/
+
+# Local generated artifacts
+/flow.dot
