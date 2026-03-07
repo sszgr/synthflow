@@ -132,6 +132,16 @@ flow = Flow(
 
 Full runnable example: [`examples/general_pipeline.py`](examples/general_pipeline.py)
 
+## More Examples
+
+- General pipeline: `PYTHONPATH=. python3 examples/general_pipeline.py`
+- Order fulfillment (realistic e-commerce flow): `PYTHONPATH=. python3 examples/order_fulfillment_demo.py`
+- API aggregation gateway flow: `PYTHONPATH=. python3 examples/api_aggregation_demo.py`
+- GitHub trending repos (recent, formatted table): `PYTHONPATH=. python3 examples/github_trending_demo.py`
+- Type validation: `PYTHONPATH=. python3 examples/type_validation_demo.py`
+- Graphviz export (writes `flow.dot`): `PYTHONPATH=. python3 examples/graphviz_export_demo.py`
+- Execution context events: `PYTHONPATH=. python3 examples/execution_context_demo.py`
+
 ## Plugins
 
 Attach plugins on a node with `.use(...)`:
@@ -154,4 +164,26 @@ Flow
         ├── [parallel-2] MaxNode(max_branch)
         ├── [parallel-3] EvenCountNode(even_branch)
         └── BuildSummary(summary)
+```
+
+`flow.to_graphviz()` returns Graphviz DOT text for rendering diagrams in tooling/CI:
+
+```python
+dot = flow.to_graphviz()
+print(dot)
+```
+
+## Type Validation
+
+Optionally declare node input/output schemas:
+
+```python
+from synthflow.types import Field
+
+class MyNode(Node):
+    params_schema = {"x": Field(int)}
+    output_schema = Field(dict)
+
+    async def run(self, x):
+        return {"value": x}
 ```

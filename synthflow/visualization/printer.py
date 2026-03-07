@@ -1,1 +1,2 @@
-# Printer placeholder
+def print_flow(flow):
+    flow.visualize()

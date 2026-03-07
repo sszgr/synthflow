@@ -2,6 +2,7 @@ from synthflow.core.parallel import Parallel
 from synthflow.core.condition import If, Switch
 from synthflow.execution.context import ExecutionContext
 from synthflow.execution.engine import Engine
+from synthflow.visualization.graphviz import to_dot
 
 class Flow:
     def __init__(self, start_node, engine=None):
@@ -33,6 +34,9 @@ class Flow:
         print("Flow")
         for line in self._render_node(self.start_node, prefix="", is_last=True):
             print(line)
+
+    def to_graphviz(self):
+        return to_dot(self.start_node)
 
     def _label(self, node, edge=None):
         node_label = f"{node.__class__.__name__}({node.id})" if getattr(node, "id", None) else node.__class__.__name__

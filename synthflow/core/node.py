@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 from .datastore import DataStore
+from synthflow.types.validator import validate_node_output, validate_node_params
 
 
 class ResultRef:
@@ -90,6 +91,7 @@ class Node:
         kwargs.update(self.params)
         resolved_kwargs = self._resolve_results(self._input_kwargs, store)
         kwargs.update(resolved_kwargs)
+        validate_node_params(self, kwargs)
 
         return args, kwargs
 
@@ -134,6 +136,7 @@ class Node:
         return value
 
     def _persist_result(self, store: DataStore, result):
+        validate_node_output(self, result)
         if result is None:
             return
         if isinstance(result, dict):
