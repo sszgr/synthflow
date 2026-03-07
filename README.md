@@ -20,12 +20,20 @@ Requires Python 3.10+
 
 ```bash
 pip install synthflow-py
-````
+```
 
 ### From GitHub (latest development version)
 
 ```bash
 pip install git+https://github.com/sszgr/synthflow.git
+```
+
+## Run Tests
+
+Use the standard library test runner:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
 ```
 
 
@@ -70,6 +78,16 @@ flow.visualize()
 asyncio.run(flow.run())
 ```
 
+Get execution state and timeline:
+
+```python
+context = asyncio.run(flow.run(return_context=True))
+print(context.state)      # ExecutionState.SUCCEEDED / FAILED / CANCELLED
+print(context.events)     # state transitions with timestamps
+print(context.node_events)  # per-node lifecycle events
+print(context.store)      # DataStore
+```
+
 ## DSL Example (Parallel + IF + OR)
 
 ```python
@@ -84,6 +102,7 @@ flow = Flow(
         MaxNode(id="max_branch").input(ResultRef("seed")),
         EvenCountNode(id="even_branch").input(ResultRef("seed")),
         id="stats_parallel",
+        on_conflict="overwrite",  # overwrite | keep | error
     )
     >> BuildSummary(id="summary").input(
         ResultRef("sum_branch"),
@@ -101,6 +120,15 @@ flow = Flow(
     )
 )
 ```
+
+### Parallel Semantics
+
+- Branches run concurrently.
+- If any branch fails, remaining branches are cancelled and the flow raises an exception.
+- Merge conflict policy is controlled by `on_conflict`:
+  - `overwrite` (default): later branch value overwrites earlier value
+  - `keep`: preserve first value
+  - `error`: raise on conflicting values
 
 Full runnable example: [`examples/general_pipeline.py`](examples/general_pipeline.py)
 

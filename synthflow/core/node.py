@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 from .datastore import DataStore
 
@@ -10,6 +11,7 @@ class ResultRef:
         self.transform = transform
 
     def map(self, transform):
+        # Compose transforms so chained .map() calls are evaluated in declaration order.
         if self.transform is None:
             chained = transform
         else:
@@ -39,6 +41,7 @@ class Node:
         self._input_kwargs = {}
 
     def __rshift__(self, other):
+        # Allow `a >> b >> c` style chaining by always appending to tail.
         tail = self
         while tail.next_node is not None:
             tail = tail.next_node
@@ -56,10 +59,21 @@ class Node:
         return self
 
     async def execute(self, store: DataStore):
-        args, kwargs = await self._collect_inputs(store)
-        result = await self._invoke_with_plugins(store, args, kwargs)
-        store.set_node_result(self.id, result)
-        self._persist_result(store, result)
+        # Emit lifecycle events for observability when flow runs via execution engine.
+        self._record_node_event(store, "started", "Node execution started")
+        try:
+            args, kwargs = await self._collect_inputs(store)
+            result = await self._invoke_with_plugins(store, args, kwargs)
+            store.set_node_result(self.id, result)
+            self._persist_result(store, result)
+        except asyncio.CancelledError:
+            self._record_node_event(store, "cancelled", "Node execution cancelled")
+            raise
+        except Exception as exc:
+            self._record_node_event(store, "failed", f"Node execution failed: {exc}")
+            raise
+        else:
+            self._record_node_event(store, "succeeded", "Node execution succeeded")
 
         if self.next_node:
             return await self.next_node.execute(store)
@@ -90,6 +104,7 @@ class Node:
         return value
 
     def _resolve_single_result(self, nr: ResultRef, store: DataStore):
+        # Resolve from most-specific to most-generic lookup path.
         value = store.get_node_result(nr.node_id)
         if value is None:
             value = store.get_from_node(nr.node_id, nr.output_type)
@@ -106,7 +121,8 @@ class Node:
         if value is None:
             raise Exception(f"ResultRef from node '{nr.node_id}' not found in store")
 
-        if isinstance(value, list) and nr.output_index not in (0, None):
+        # Optional index extraction applies to sequence-like node outputs.
+        if isinstance(value, (list, tuple)) and nr.output_index is not None:
             try:
                 value = value[nr.output_index]
             except IndexError:
@@ -148,6 +164,7 @@ class Node:
                 return await result
             return result
 
+        # Build onion-style middleware chain: first registered plugin is outermost.
         call_next = base_call
         for plugin in reversed(self.plugins):
             prev = call_next
@@ -169,6 +186,7 @@ class Node:
         sig = inspect.signature(runner)
         argc = len(sig.parameters)
 
+        # Support simple plugin forms while keeping a stable call_next contract.
         if argc >= 3:
             outcome = runner(call_next, store, self)
         elif argc == 2:
@@ -184,3 +202,15 @@ class Node:
 
     async def run(self, *args, **kwargs):
         raise NotImplementedError
+
+    def _record_node_event(self, store: DataStore, state: str, message: str):
+        context = store.get_execution_context()
+        if context is None:
+            return
+        node_id = self.id or self.__class__.__name__
+        context.record_node_event(
+            node_id=node_id,
+            node_type=self.__class__.__name__,
+            state=state,
+            message=message,
+        )

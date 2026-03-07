@@ -1,10 +1,13 @@
-from synthflow.core.datastore import DataStore
 from synthflow.core.parallel import Parallel
 from synthflow.core.condition import If, Switch
+from synthflow.execution.context import ExecutionContext
+from synthflow.execution.engine import Engine
 
 class Flow:
-    def __init__(self, start_node):
+    def __init__(self, start_node, engine=None):
         self.start_node = self._normalize_start(start_node)
+        self.engine = engine or Engine()
+        self.last_execution = None
 
     def _normalize_start(self, start_node):
         if isinstance(start_node, (list, tuple)):
@@ -16,9 +19,15 @@ class Flow:
             return root
         return start_node
 
-    async def run(self):
-        store = DataStore()
-        return await self.start_node.execute(store)
+    async def run(self, return_context=False):
+        # Keep backwards compatibility: by default return DataStore.
+        # `last_execution` is set before run so failures still leave diagnostics.
+        context = ExecutionContext()
+        self.last_execution = context
+        await self.engine.run(self.start_node, context=context)
+        if return_context:
+            return context
+        return context.store
 
     def visualize(self):
         print("Flow")
