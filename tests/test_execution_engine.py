@@ -22,6 +22,14 @@ class SleepNode(Node):
         return "done"
 
 
+class StreamingNode(Node):
+    async def run(self):
+        self.emit_event("token", {"text": "hel"})
+        await asyncio.sleep(0.01)
+        self.emit_event("token", {"text": "lo"})
+        return "hello"
+
+
 class ExecutionEngineTests(unittest.IsolatedAsyncioTestCase):
     async def test_flow_exposes_success_execution_context(self):
         flow = Flow(SuccessNode(id="success"))
@@ -73,3 +81,28 @@ class ExecutionEngineTests(unittest.IsolatedAsyncioTestCase):
             [(event.node_id, event.state) for event in flow.last_execution.node_events],
             [("sleep", "started"), ("sleep", "cancelled")],
         )
+
+    async def test_run_stream_emits_flow_and_node_events(self):
+        flow = Flow(SuccessNode(id="success"))
+
+        events = [event async for event in flow.run_stream()]
+
+        self.assertEqual(
+            [(event.event, event.node_id) for event in events],
+            [
+                ("flow_state", None),
+                ("node_state", "success"),
+                ("node_state", "success"),
+                ("flow_state", None),
+            ],
+        )
+        self.assertEqual(flow.last_execution.state, ExecutionState.SUCCEEDED)
+
+    async def test_run_stream_yields_custom_node_events(self):
+        flow = Flow(StreamingNode(id="streaming"))
+
+        events = [event async for event in flow.run_stream()]
+
+        tokens = [event.data["text"] for event in events if event.event == "token"]
+        self.assertEqual(tokens, ["hel", "lo"])
+        self.assertEqual(flow.last_execution.store.get_node_result("streaming"), "hello")

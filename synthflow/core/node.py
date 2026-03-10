@@ -1,7 +1,11 @@
 import asyncio
+import contextvars
 import inspect
 from .datastore import DataStore
 from synthflow.types.validator import validate_node_output, validate_node_params
+
+
+_current_execution_context = contextvars.ContextVar("synthflow_execution_context", default=None)
 
 
 class ResultRef:
@@ -62,6 +66,7 @@ class Node:
     async def execute(self, store: DataStore):
         # Emit lifecycle events for observability when flow runs via execution engine.
         self._record_node_event(store, "started", "Node execution started")
+        token = _current_execution_context.set(store.get_execution_context())
         try:
             args, kwargs = await self._collect_inputs(store)
             result = await self._invoke_with_plugins(store, args, kwargs)
@@ -75,6 +80,8 @@ class Node:
             raise
         else:
             self._record_node_event(store, "succeeded", "Node execution succeeded")
+        finally:
+            _current_execution_context.reset(token)
 
         if self.next_node:
             return await self.next_node.execute(store)
@@ -205,6 +212,17 @@ class Node:
 
     async def run(self, *args, **kwargs):
         raise NotImplementedError
+
+    def emit_event(self, event: str, data=None):
+        context = _current_execution_context.get()
+        if context is None:
+            return None
+        return context.emit_stream_event(
+            event,
+            data,
+            node_id=self.id or self.__class__.__name__,
+            node_type=self.__class__.__name__,
+        )
 
     def _record_node_event(self, store: DataStore, state: str, message: str):
         context = store.get_execution_context()

@@ -1,5 +1,6 @@
 from synthflow.core.parallel import Parallel
 from synthflow.core.condition import If, Switch
+import asyncio
 from synthflow.execution.context import ExecutionContext
 from synthflow.execution.engine import Engine
 from synthflow.visualization.graphviz import to_dot
@@ -24,11 +25,37 @@ class Flow:
         # Keep backwards compatibility: by default return DataStore.
         # `last_execution` is set before run so failures still leave diagnostics.
         context = ExecutionContext()
+        context.attach_loop(asyncio.get_running_loop())
         self.last_execution = context
         await self.engine.run(self.start_node, context=context)
         if return_context:
             return context
         return context.store
+
+    async def run_stream(self):
+        context = ExecutionContext()
+        context.attach_loop(asyncio.get_running_loop())
+        self.last_execution = context
+
+        async def runner():
+            try:
+                await self.engine.run(self.start_node, context=context)
+            finally:
+                context.close_stream()
+
+        task = asyncio.create_task(runner())
+        try:
+            async for event in context.stream():
+                yield event
+        finally:
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+        await task
 
     def visualize(self):
         print("Flow")

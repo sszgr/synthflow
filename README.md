@@ -88,6 +88,14 @@ print(context.node_events)  # per-node lifecycle events
 print(context.store)      # DataStore
 ```
 
+Stream execution events as they happen:
+
+```python
+async for event in flow.run_stream():
+    if event.event == "token":
+        print(event.data["text"], end="", flush=True)
+```
+
 ## DSL Example (Parallel + IF + OR)
 
 ```python
@@ -137,10 +145,19 @@ Full runnable example: [`examples/general_pipeline.py`](examples/general_pipelin
 - General pipeline: `PYTHONPATH=. python3 examples/general_pipeline.py`
 - Order fulfillment (realistic e-commerce flow): `PYTHONPATH=. python3 examples/order_fulfillment_demo.py`
 - API aggregation gateway flow: `PYTHONPATH=. python3 examples/api_aggregation_demo.py`
+- DeepSeek streaming orchestration: `DEEPSEEK_API_KEY=... PYTHONPATH=. python3 examples/deepseek_streaming_demo.py`
+- FastAPI chat SSE demo: `pip install fastapi uvicorn && DEEPSEEK_API_KEY=... PYTHONPATH=. uvicorn examples.fastapi_chat_sse_demo:app --reload`
 - GitHub trending repos (recent, formatted table): `PYTHONPATH=. python3 examples/github_trending_demo.py`
 - Type validation: `PYTHONPATH=. python3 examples/type_validation_demo.py`
 - Graphviz export (writes `flow.dot`): `PYTHONPATH=. python3 examples/graphviz_export_demo.py`
 - Execution context events: `PYTHONPATH=. python3 examples/execution_context_demo.py`
+
+DeepSeek streaming demo environment variables:
+- `DEEPSEEK_API_KEY`: required
+- `DEEPSEEK_BASE_URL`: optional, defaults to `https://api.deepseek.com`
+- `DEEPSEEK_MODEL`: optional, defaults to `deepseek-chat`
+
+The FastAPI SSE demo serves a browser chat page at `http://127.0.0.1:8000/` and streams assistant tokens from `/chat/stream`.
 
 ## Plugins
 
