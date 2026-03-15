@@ -3,6 +3,7 @@ import unittest
 
 from synthflow.core.flow import Flow
 from synthflow.core.node import Node
+from synthflow.runtime.store import InMemoryRunStore
 from synthflow.execution.context import ExecutionState
 
 
@@ -106,3 +107,28 @@ class ExecutionEngineTests(unittest.IsolatedAsyncioTestCase):
         tokens = [event.data["text"] for event in events if event.event == "token"]
         self.assertEqual(tokens, ["hel", "lo"])
         self.assertEqual(flow.last_execution.store.get_node_result("streaming"), "hello")
+
+    async def test_context_exposes_run_id_and_sequence_ids(self):
+        flow = Flow(StreamingNode(id="streaming"), run_store=InMemoryRunStore())
+
+        events = [event async for event in flow.run_stream()]
+
+        self.assertTrue(flow.last_execution.run_id)
+        self.assertTrue(all(event.run_id == flow.last_execution.run_id for event in events))
+        self.assertEqual([event.sequence_id for event in events], [1, 2, 3, 4, 5, 6])
+
+    async def test_flow_can_build_snapshot_from_run_store(self):
+        run_store = InMemoryRunStore()
+        flow = Flow(SuccessNode(id="success"), run_store=run_store)
+
+        context = await flow.run(return_context=True)
+        snapshot = flow.get_run_snapshot(context.run_id)
+        run = flow.get_run(context.run_id)
+
+        self.assertIsNotNone(run)
+        self.assertIsNotNone(snapshot)
+        self.assertEqual(run.run_id, context.run_id)
+        self.assertEqual(run.status, "succeeded")
+        self.assertEqual(snapshot.status, "succeeded")
+        self.assertEqual(snapshot.completed_nodes, ["success"])
+        self.assertEqual(snapshot.last_sequence_id, 4)

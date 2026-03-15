@@ -3,12 +3,16 @@ from synthflow.core.condition import If, Switch
 import asyncio
 from synthflow.execution.context import ExecutionContext
 from synthflow.execution.engine import Engine
+from synthflow.runtime.store import InMemoryRunStore
 from synthflow.visualization.graphviz import to_dot
 
 class Flow:
-    def __init__(self, start_node, engine=None):
+    def __init__(self, start_node, engine=None, run_store=None):
         self.start_node = self._normalize_start(start_node)
         self.engine = engine or Engine()
+        # The store is injected at the flow level so multiple executions can be
+        # queried later by run_id through a shared persistence backend.
+        self.run_store = run_store or InMemoryRunStore()
         self.last_execution = None
 
     def _normalize_start(self, start_node):
@@ -24,8 +28,9 @@ class Flow:
     async def run(self, return_context=False):
         # Keep backwards compatibility: by default return DataStore.
         # `last_execution` is set before run so failures still leave diagnostics.
-        context = ExecutionContext()
+        context = ExecutionContext(run_store=self.run_store, flow_name=self.__class__.__name__)
         context.attach_loop(asyncio.get_running_loop())
+        context.initialize_run()
         self.last_execution = context
         await self.engine.run(self.start_node, context=context)
         if return_context:
@@ -33,8 +38,9 @@ class Flow:
         return context.store
 
     async def run_stream(self):
-        context = ExecutionContext()
+        context = ExecutionContext(run_store=self.run_store, flow_name=self.__class__.__name__)
         context.attach_loop(asyncio.get_running_loop())
+        context.initialize_run()
         self.last_execution = context
 
         async def runner():
@@ -56,6 +62,16 @@ class Flow:
                     pass
 
         await task
+
+    def get_run(self, run_id: str):
+        return self.run_store.get_run(run_id)
+
+    def get_run_events(self, run_id: str, after_sequence_id: int | None = None):
+        return self.run_store.list_events(run_id, after_sequence_id=after_sequence_id)
+
+    def get_run_snapshot(self, run_id: str):
+        # Snapshot access is the read path used by reconnecting frontends.
+        return self.run_store.get_snapshot(run_id)
 
     def visualize(self):
         print("Flow")
